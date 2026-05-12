@@ -3,104 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MapVibe Pro | Cloud Sync</title>
-    
+    <title>MapVibe Pro Cloud</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <!-- Scripts de Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; margin: 0; padding: 0; }
         
-        /* FIX CRÍTICO 1: Evita que Tailwind aplaste el plano del mapa */
-        .leaflet-container img {
-            max-width: none !important;
-            max-height: none !important;
-        }
-
         #map-container { 
             height: calc(100vh - 120px); 
-            border-radius: 1.5rem; 
-            overflow: hidden; 
+            width: 100%; 
             position: relative; 
-            background: #e2e8f0;
-            border: 4px solid white;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
-            display: flex;
+            background-color: #e2e8f0;
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+            border-radius: 2rem;
+            overflow: hidden;
         }
         
-        /* FIX CRÍTICO 2: Limpieza del canvas del mapa */
-        #map { height: 100%; width: 100%; background: transparent; z-index: 10; }
+        #map { height: 100%; width: 100%; background: transparent !important; z-index: 10;}
+        
+        /* FIX CRÍTICO: Evitar que Tailwind aplaste las imágenes de Leaflet */
+        .leaflet-container img { max-width: none !important; }
         
         .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.5); }
+        
         .custom-marker { display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3); border: 2px solid white; transition: transform 0.2s; cursor: pointer; }
         .custom-marker:hover { transform: scale(1.2); z-index: 1000 !important; }
         
-        #empty-hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 500; transition: opacity 0.3s; background: rgba(226, 232, 240, 0.5); }
+        /* Estilos para tablas copiadas de Excel */
+        .rich-text table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; }
+        .rich-text th, .rich-text td { border: 1px solid #cbd5e1; padding: 6px; }
+        .rich-text th { background-color: #f1f5f9; font-weight: bold; }
+        .rich-text tr:nth-child(even) { background-color: #f8fafc; }
+        
+        [contenteditable=true]:empty:before { content: attr(placeholder); color: #94a3b8; pointer-events: none; display: block; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
 <body class="h-screen overflow-hidden p-4 md:p-6">
-
-    <nav class="h-16 mb-6 flex items-center justify-between px-2">
+    <nav class="h-20 mb-4 flex items-center justify-between px-4 glass-panel rounded-3xl shadow-sm">
         <div class="flex items-center gap-4">
-            <div class="bg-indigo-600 p-2.5 rounded-2xl shadow-xl">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
-                </svg>
+            <div class="bg-indigo-600 p-3 rounded-2xl shadow-lg shadow-indigo-200">
+                <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A2 2 0 013 15.482V4.742a2 2 0 011.132-1.803l5.447-2.724a2 2 0 011.842 0l5.447 2.724A2 2 0 0118 4.742v10.74a2 2 0 01-1.132 1.803L11.42 19.82a2 2 0 01-1.842 0z" /></svg>
             </div>
             <div>
-                <h1 class="text-xl font-extrabold text-slate-800">MapVibe <span class="text-indigo-600">Pro</span></h1>
-                <p id="cloud-status" class="text-[9px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-2">
-                    <span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span> Modo Local
-                </p>
+                <h1 class="text-xl font-black text-slate-800 tracking-tight">MapVibe <span class="text-indigo-600 font-medium">Pro</span></h1>
+                <div class="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest" id="cloud-status">
+                    <span class="w-1.5 h-1.5 bg-yellow-500 rounded-full"></span> Modo Local
+                </div>
             </div>
         </div>
-
+        
         <div class="flex items-center gap-3">
-            <label class="cursor-pointer bg-white border border-slate-200 px-5 py-2.5 rounded-2xl text-xs font-black uppercase hover:bg-slate-50 transition shadow-sm">
-                Cargar Plano
+            <label class="cursor-pointer bg-white hover:bg-slate-50 border border-slate-200 px-5 py-3 rounded-2xl transition-all shadow-sm flex items-center gap-2 group">
+                <svg class="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                <span class="text-xs font-black text-slate-700 uppercase">Subir Plano</span>
                 <input type="file" id="upload-input" class="hidden" accept="image/*" onchange="processFile(event)">
             </label>
-            <button onclick="shareMap()" class="bg-slate-900 text-white px-6 py-2.5 rounded-2xl text-xs font-black uppercase shadow-lg hover:bg-indigo-600 transition">
+            <button onclick="shareMap(event)" class="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-xs font-black uppercase shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                 Compartir
             </button>
         </div>
     </nav>
 
     <main class="flex h-[calc(100vh-140px)] gap-6">
-        <aside class="w-72 glass-panel rounded-[2rem] p-6 shadow-xl hidden lg:flex flex-col gap-6 relative z-20">
-            <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Marcadores</h2>
-            <div id="marker-list" class="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-                <p class="text-[10px] text-slate-400 italic text-center py-10">Sube un plano para comenzar</p>
+        <!-- Sidebar -->
+        <aside class="w-80 glass-panel rounded-[2.5rem] p-6 shadow-xl hidden lg:flex flex-col gap-4 transition-all">
+            <div class="flex items-center justify-between border-b pb-4">
+                <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Puntos Activos</h2>
+            </div>
+            <div id="marker-list" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
+                <div class="text-center py-10 opacity-50">
+                    <p class="text-[11px] font-bold uppercase">Sube un plano para empezar</p>
+                </div>
             </div>
         </aside>
 
-        <div id="map-container" class="flex-1">
+        <!-- Map Area -->
+        <div id="map-container" class="flex-1 shadow-2xl border-4 border-white relative">
             <div id="map"></div>
-            <div id="empty-hint">
-                <div id="hint-box" class="bg-white/90 backdrop-blur-md px-8 py-4 rounded-3xl shadow-2xl border border-white/50 text-center">
-                    <p class="text-sm font-black text-slate-700 uppercase tracking-tight">Sube una imagen para visualizar el plano</p>
-                    <p class="text-xs font-medium text-slate-500 mt-2">Formatos: JPG, PNG</p>
+            
+            <div id="empty-hint" class="absolute inset-0 z-[500] flex items-center justify-center pointer-events-none bg-slate-100/80 backdrop-blur-sm transition-opacity">
+                <div id="hint-box" class="bg-white/90 px-8 py-6 rounded-[2rem] shadow-2xl border border-indigo-50 flex flex-col items-center gap-4 text-center">
+                    <div class="bg-indigo-100 p-4 rounded-full">
+                        <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <p class="text-sm font-black text-slate-800 uppercase tracking-wide">Sube un plano o mapa (JPG/PNG)</p>
+                    <p class="text-[10px] font-bold text-slate-400">Haz clic en "Subir Plano" arriba</p>
                 </div>
             </div>
         </div>
     </main>
 
-    <div id="modal-editor" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[2000] hidden flex items-center justify-center p-6">
-        <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-10 shadow-2xl">
+    <!-- Editor Modal -->
+    <div id="modal-editor" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[2000] hidden flex items-center justify-center p-6 transition-opacity">
+        <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl">
             <h3 class="text-2xl font-black text-slate-800 mb-6">Detalles de la Zona</h3>
             <div class="space-y-4">
-                <input type="text" id="editor-title" placeholder="Nombre de la zona..." class="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-bold focus:ring-2 focus:ring-indigo-500 transition">
-                <div id="editor-desc" contenteditable="true" class="w-full min-h-[120px] px-6 py-4 bg-slate-50 rounded-2xl outline-none text-sm overflow-y-auto border-2 border-transparent"></div>
+                <input type="text" id="editor-title" placeholder="Nombre de la zona..." class="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold focus:ring-2 focus:ring-indigo-500">
+                <div id="editor-desc" contenteditable="true" placeholder="Escribe o pega tablas de Excel aquí..." class="w-full min-h-[120px] px-5 py-4 bg-slate-50 rounded-2xl outline-none text-sm overflow-y-auto rich-text custom-scrollbar focus:ring-2 focus:ring-indigo-500"></div>
                 <div class="grid grid-cols-2 gap-4">
                     <input type="color" id="editor-color" value="#4f46e5" class="w-full h-12 rounded-2xl cursor-pointer">
-                    <select id="editor-icon" class="w-full h-12 bg-slate-50 px-4 rounded-2xl text-sm font-bold">
+                    <select id="editor-icon" class="w-full h-12 bg-slate-50 px-4 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="📍">📍 Ubicación</option>
                         <option value="⚠️">⚠️ Alerta</option>
                         <option value="✅">✅ Revisado</option>
@@ -114,235 +127,351 @@
         </div>
     </div>
 
+    <!-- View & Comments Modal -->
+    <div id="modal-view" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[2000] hidden flex items-center justify-center p-6">
+        <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-start mb-6">
+                <h3 id="view-title" class="text-2xl font-black text-slate-800"></h3>
+                <button onclick="closeView()" class="bg-slate-100 text-slate-600 hover:bg-red-100 hover:text-red-600 w-8 h-8 rounded-full flex items-center justify-center transition font-bold">&times;</button>
+            </div>
+            
+            <div id="view-desc" class="rich-text mb-6 overflow-y-auto max-h-40 text-sm text-slate-700 border-b pb-4 custom-scrollbar"></div>
+
+            <div class="flex items-center justify-between mb-4">
+                <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Comentarios</h4>
+            </div>
+            
+            <div id="view-comments" class="flex-1 overflow-y-auto space-y-3 mb-6 custom-scrollbar pr-2">
+                <!-- Comentarios en vivo se insertan aquí -->
+            </div>
+
+            <div class="mt-auto pt-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div id="new-comment" contenteditable="true" placeholder="Escribe un comentario o pega una tabla de Excel..." class="w-full min-h-[50px] max-h-[120px] overflow-y-auto outline-none text-sm rich-text custom-scrollbar mb-3 bg-transparent p-2"></div>
+                <button onclick="addComment()" class="w-full py-3 bg-indigo-600 text-white text-xs font-black uppercase rounded-xl shadow-md hover:bg-indigo-700 transition">Enviar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // Variables globales aseguradas
-        let map;
-        let imageOverlay = null; 
-        let db = null;
-        let markers = [];
-        let currentClickCoords = null;
-        const mapId = new URLSearchParams(window.location.search).get('id') || 'default_v2';
-        
-        // Configuración de Firebase (Puedes dejarla así si no la usas, no romperá la app)
+        // === CONFIGURACIÓN FIREBASE (OPCIONAL/REEMPLAZABLE) ===
         const firebaseConfig = {
            apiKey: "AIzaSyDnPiBbzVrVBP8j6DiBBwrYg-PVZrftEck",
-           authDomain: "mapvibepro.firebaseapp.com",
-           projectId: "mapvibepro",
-           storageBucket: "mapvibepro.firebasestorage.app",
-           messagingSenderId: "883985953230",
-           appId: "1:883985953230:web:588883c6438c6ea6b6fb9f",
-           measurementId: "G-DCBST5JKCJ"
+  authDomain: "mapvibepro.firebaseapp.com",
+  projectId: "mapvibepro",
+  storageBucket: "mapvibepro.firebasestorage.app",
+  messagingSenderId: "883985953230",
+  appId: "1:883985953230:web:588883c6438c6ea6b6fb9f",
+  measurementId: "G-DCBST5JKCJ"
         };
 
-        window.onload = async function() {
-            /* 
-             * FIX CRÍTICO 3: minZoom en -10. 
-             * Esto permite que las imágenes GIGANTES (ej. 4K) puedan reducirse 
-             * lo suficiente para caber en la pantalla sin provocar un error en blanco.
-             */
-            map = L.map('map', { 
-                crs: L.CRS.Simple, 
-                minZoom: -10, 
-                maxZoom: 5, 
-                zoomControl: false, 
-                attributionControl: false 
+        let map;
+        let imageOverlay = null;
+        let markers = [];
+        let currentClickCoords = null;
+        let mapId = new URLSearchParams(window.location.search).get('mapId') || "local_map_" + Math.random().toString(36).substr(2, 9);
+        let db = null;
+        let currentMarkerId = null;
+
+        window.onload = function() {
+            // Inicializar Mapa con Zoom infinito y coordenadas Simples
+            map = L.map('map', {
+                crs: L.CRS.Simple,
+                minZoom: -10, // FIX CRÍTICO: Permite imágenes gigantes sin error 404
+                maxZoom: 5,
+                zoomControl: false,
+                attributionControl: false
             }).setView([0, 0], 0);
 
             L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-            // Evento para añadir marcadores
-            map.on('click', (e) => { 
-                if (!imageOverlay) return; // Protege de clics antes de subir plano
-                currentClickCoords = e.latlng; 
-                openEditor(); 
+            // Evento click para agregar puntos
+            map.on('click', function(e) {
+                if(!imageOverlay) return; // No permitir puntos si no hay plano
+                currentClickCoords = e.latlng;
+                document.getElementById('editor-title').value = "";
+                document.getElementById('editor-desc').innerHTML = "";
+                document.getElementById('modal-editor').classList.remove('hidden');
             });
 
-            // Conexión a Firebase
+            // Iniciar Firebase si está configurado (Fallback a local seguro)
             try {
-                if (typeof firebase !== 'undefined') {
+                if (typeof firebase !== 'undefined' && firebaseConfig.apiKey !== "TU_API_KEY") {
                     firebase.initializeApp(firebaseConfig);
                     db = firebase.database();
                     document.getElementById('cloud-status').innerHTML = '<span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> Nube Conectada';
                     listenToChanges();
+                } else {
+                    // MODO LOCAL FALLBACK
+                    loadLocalData();
                 }
-            } catch (e) { 
-                console.warn("Ejecutando en modo local por error de red."); 
+            } catch (e) {
+                console.warn("Error iniciando Firebase, usando modo local.");
+                loadLocalData();
             }
 
-            loadSavedPlano();
+            // Ajuste dinámico del mapa al cargar la vista
+            setTimeout(() => map.invalidateSize(), 500);
         };
 
-        const dbName = "MapVibeStorage";
-        const storeName = "Planos";
-
-        function openDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(dbName, 1);
-                request.onupgradeneeded = (e) => e.target.result.createObjectStore(storeName);
-                request.onsuccess = (e) => resolve(e.target.result);
-                request.onerror = () => reject("Error DB");
-            });
-        }
-
-        async function savePlanoLocal(file) {
-            try {
-                const dbInstance = await openDB();
-                const tx = dbInstance.transaction(storeName, "readwrite");
-                tx.objectStore(storeName).put(file, 'last_plano');
-            } catch (e) { console.warn("No se pudo guardar offline"); }
-        }
-
-        async function loadSavedPlano() {
-            try {
-                const dbInstance = await openDB();
-                const request = dbInstance.transaction(storeName).objectStore(storeName).get('last_plano');
-                request.onsuccess = () => {
-                    if (request.result) {
-                        const url = URL.createObjectURL(request.result);
-                        setupMapImage(url);
-                    }
-                };
-            } catch (e) { console.log("No hay plano previo guardado."); }
-        }
-
-        async function processFile(event) {
+        // === CARGAR IMAGEN AL MAPA ===
+        function processFile(event) {
             const file = event.target.files[0];
             if (!file) return;
 
-            // Validación de imagen
             if (!file.type.startsWith('image/')) {
-                alert("Por favor, sube un archivo de imagen válido (JPG, PNG).");
+                alert("Por favor sube una imagen válida (JPG/PNG).");
                 return;
             }
 
-            // UI Feedback
-            const hintBox = document.getElementById('hint-box');
-            hintBox.innerHTML = '<p class="text-sm font-black text-indigo-600 uppercase animate-pulse">Procesando plano...</p>';
-            document.getElementById('empty-hint').style.display = 'flex';
+            document.getElementById('hint-box').innerHTML = '<p class="text-sm font-black text-indigo-600 uppercase animate-pulse">Procesando plano...</p>';
 
-            try {
-                const objectUrl = URL.createObjectURL(file);
-                setupMapImage(objectUrl);
-                await savePlanoLocal(file);
-            } catch (e) {
-                alert("Ocurrió un error al leer la imagen.");
-                hintBox.innerHTML = '<p class="text-sm font-black text-red-600 uppercase">Error de lectura</p>';
+            // Usamos URL.createObjectURL para velocidad instantánea sin QuotaExceededError
+            const imgUrl = URL.createObjectURL(file);
+            
+            // Si hay Firebase, guardamos una versión comprimida para la red
+            if (db) {
+                compressAndUpload(file);
+            } else {
+                setupMapImage(imgUrl);
+                // Guardado rápido local en Base64 para persistencia si no hay nube
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try { localStorage.setItem('mapvibe_local_base64', e.target.result); } catch(err) {} 
+                };
+                reader.readAsDataURL(file);
             }
+        }
+
+        function compressAndUpload(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    const max = 1500;
+                    if (w > max || h > max) {
+                        if (w > h) { h = Math.round((h * max) / w); w = max; }
+                        else { w = Math.round((w * max) / h); h = max; }
+                    }
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    const base64 = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    db.ref('maps/' + mapId + '/plano').set(base64)
+                      .then(() => setupMapImage(base64))
+                      .catch(err => console.error(err));
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
         }
 
         function setupMapImage(url) {
             const img = new Image();
-            
             img.onload = function() {
+                if (imageOverlay) map.removeLayer(imageOverlay);
                 const w = this.width;
                 const h = this.height;
-                // CRS.Simple mapea los pixeles [y, x]
                 const bounds = [[0, 0], [h, w]];
-
-                if (imageOverlay) {
-                    map.removeLayer(imageOverlay);
-                }
                 
-                // Ocultar mensaje por completo (display none evita bloqueos de clics)
-                document.getElementById('empty-hint').style.display = 'none';
-
-                // FIX CRÍTICO 4: Forzar a Leaflet a calcular el tamaño del contenedor ANTES de ajustar los bordes
-                map.invalidateSize(true);
-                
-                // Añadimos imagen y ajustamos
                 imageOverlay = L.imageOverlay(url, bounds).addTo(map);
                 map.fitBounds(bounds);
                 map.setMaxBounds(bounds);
+                
+                document.getElementById('empty-hint').style.display = 'none';
+                setTimeout(() => map.invalidateSize(), 200);
             };
-            
-            img.onerror = function() {
-                alert("La imagen está corrupta o el navegador bloqueó la lectura.");
-                document.getElementById('empty-hint').style.display = 'flex';
-                document.getElementById('hint-box').innerHTML = '<p class="text-sm font-black text-red-600 uppercase">Imagen corrupta</p>';
+            img.onerror = () => {
+                alert("Error al cargar la imagen. Intenta con otro archivo.");
+                document.getElementById('hint-box').innerHTML = '<p class="text-sm font-black text-red-600 uppercase">Error de imagen</p>';
             };
-            
             img.src = url;
         }
 
-        function openEditor() { 
-            document.getElementById('modal-editor').classList.remove('hidden'); 
-        }
-        
-        function closeEditor() { 
-            document.getElementById('modal-editor').classList.add('hidden'); 
+        // === GESTIÓN DE MARCADORES Y DATOS ===
+        function closeEditor() {
+            document.getElementById('modal-editor').classList.add('hidden');
         }
 
         function savePoint() {
-            const point = {
-                title: document.getElementById('editor-title').value || "Punto de Interés",
-                desc: document.getElementById('editor-desc').innerHTML,
-                color: document.getElementById('editor-color').value,
-                icon: document.getElementById('editor-icon').value,
-                lat: currentClickCoords.lat,
-                lng: currentClickCoords.lng
-            };
+            if(!currentClickCoords) return;
+
+            const title = document.getElementById('editor-title').value.trim() || "Nueva Zona";
+            const desc = document.getElementById('editor-desc').innerHTML;
+            const color = document.getElementById('editor-color').value;
+            const icon = document.getElementById('editor-icon').value;
+
+            const markerData = { title, desc, color, icon, lat: currentClickCoords.lat, lng: currentClickCoords.lng };
 
             if (db) {
-                db.ref('maps/' + mapId + '/markers').push(point);
+                db.ref('maps/' + mapId + '/markers').push(markerData);
             } else {
-                markers.push(point);
+                markerData.id = "local_" + Date.now();
+                markers.push(markerData);
+                localStorage.setItem('mapvibe_local_markers', JSON.stringify(markers));
                 renderMarkers();
             }
             
-            document.getElementById('editor-title').value = "";
-            document.getElementById('editor-desc').innerHTML = "";
             closeEditor();
+        }
+
+        function loadLocalData() {
+            const savedMarkers = localStorage.getItem('mapvibe_local_markers');
+            if (savedMarkers) {
+                markers = JSON.parse(savedMarkers);
+                renderMarkers();
+            }
+            const savedImg = localStorage.getItem('mapvibe_local_base64');
+            if (savedImg) {
+                setupMapImage(savedImg);
+            }
         }
 
         function listenToChanges() {
             if (!db) return;
+            
             db.ref('maps/' + mapId + '/markers').on('value', (snapshot) => {
                 const data = snapshot.val();
-                markers = data ? Object.values(data) : [];
+                markers = data ? Object.entries(data).map(([id, val]) => ({ id, ...val })) : [];
                 renderMarkers();
+                
+                if(currentMarkerId) {
+                    const m = markers.find(x => x.id === currentMarkerId);
+                    if(m) renderComments(m.comments || {});
+                }
+            });
+
+            db.ref('maps/' + mapId + '/plano').on('value', (snapshot) => {
+                const base64 = snapshot.val();
+                if (base64) setupMapImage(base64);
             });
         }
 
         function renderMarkers() {
-            // Limpiar pines anteriores
             map.eachLayer(l => { if (l instanceof L.Marker) map.removeLayer(l); });
             
             const list = document.getElementById('marker-list');
             list.innerHTML = "";
 
+            if(markers.length === 0) {
+                list.innerHTML = "<div class='text-center py-10 opacity-50'><p class='text-[11px] font-bold uppercase'>Sin puntos</p></div>";
+                return;
+            }
+
             markers.forEach((m) => {
-                // Pin del mapa
-                const icon = L.divIcon({
+                const customIcon = L.divIcon({
                     className: '',
                     html: `<div class="custom-marker" style="background:${m.color}; width:32px; height:32px; border-radius:10px; color:white; font-size:16px;">${m.icon}</div>`,
                     iconSize: [32, 32], 
                     iconAnchor: [16, 16]
                 });
 
-                const leafletMarker = L.marker([m.lat, m.lng], { icon }).addTo(map);
-                leafletMarker.bindPopup(`<div class="p-2"><b class="text-slate-800">${m.title}</b><br><small class="text-slate-500">${m.desc}</small></div>`);
+                const leafletMarker = L.marker([m.lat, m.lng], { icon: customIcon }).addTo(map);
                 
-                // Elemento en la barra lateral
+                leafletMarker.bindPopup(`
+                    <div class="p-2 w-48">
+                        <b class="text-slate-800 text-sm block mb-2 truncate">${m.title}</b>
+                        <button onclick="openView('${m.id}')" class="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase py-2 rounded-xl transition">
+                            Ver y Comentar
+                        </button>
+                    </div>
+                `);
+                
                 const item = document.createElement('div');
                 item.className = "bg-white p-3 rounded-2xl border-2 border-transparent hover:border-indigo-500 shadow-sm flex items-center gap-3 cursor-pointer transition";
                 item.innerHTML = `<div class="w-2 h-8 rounded-full flex-shrink-0" style="background:${m.color}"></div><p class="text-[10px] font-black uppercase truncate text-slate-700">${m.title}</p>`;
-                item.onclick = () => { 
-                    map.flyTo([m.lat, m.lng]); 
-                    leafletMarker.openPopup(); 
-                };
+                item.onclick = () => { map.flyTo([m.lat, m.lng]); openView(m.id); };
                 list.appendChild(item);
             });
         }
 
-        function shareMap() {
-            const url = window.location.href.split('?')[0] + "?id=" + mapId;
+        // === VISTA Y COMENTARIOS ===
+        function openView(id) {
+            currentMarkerId = id;
+            const m = markers.find(x => x.id === id);
+            if(!m) return;
+            
+            document.getElementById('view-title').innerText = m.icon + " " + m.title;
+            document.getElementById('view-desc').innerHTML = m.desc || "<i class='text-slate-400'>Sin descripción adicional</i>";
+            
+            renderComments(m.comments || {});
+            document.getElementById('modal-view').classList.remove('hidden');
+        }
+
+        function closeView() {
+            currentMarkerId = null;
+            document.getElementById('modal-view').classList.add('hidden');
+        }
+
+        function renderComments(commentsObj) {
+            const container = document.getElementById('view-comments');
+            container.innerHTML = "";
+            const commentsList = Object.values(commentsObj).sort((a, b) => a.timestamp - b.timestamp);
+            
+            if (commentsList.length === 0) {
+                container.innerHTML = "<p class='text-[11px] text-slate-400 italic text-center py-4'>Aún no hay comentarios. ¡Inicia la conversación!</p>";
+                return;
+            }
+
+            commentsList.forEach(c => {
+                const date = new Date(c.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                container.innerHTML += `
+                    <div class="bg-indigo-50/50 p-3 rounded-2xl">
+                        <span class="text-[9px] font-black text-indigo-400 uppercase tracking-wider block mb-1">${date}</span>
+                        <div class="text-[12px] text-slate-700 rich-text">${c.text}</div>
+                    </div>
+                `;
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addComment() {
+            if(!currentMarkerId) return;
+            const textBox = document.getElementById('new-comment');
+            const text = textBox.innerHTML;
+            
+            if(text.trim() === "" || text === "<br>") return;
+
+            const commentData = { text: text, timestamp: Date.now() };
+
+            if (db) {
+                db.ref('maps/' + mapId + '/markers/' + currentMarkerId + '/comments').push(commentData);
+            } else {
+                // Modo local mock
+                const m = markers.find(x => x.id === currentMarkerId);
+                if(m) {
+                    if(!m.comments) m.comments = {};
+                    m.comments["c_" + Date.now()] = commentData;
+                    localStorage.setItem('mapvibe_local_markers', JSON.stringify(markers));
+                    renderComments(m.comments);
+                }
+            }
+            textBox.innerHTML = ""; 
+        }
+
+        // === COMPARTIR LINK ===
+        function shareMap(event) {
+            const url = window.location.origin + window.location.pathname + "?mapId=" + mapId;
             const temp = document.createElement('input');
             document.body.appendChild(temp);
             temp.value = url;
             temp.select();
             document.execCommand('copy');
             document.body.removeChild(temp);
-            alert("¡Link de tu sesión copiado! Envíalo a tus colegas para que entren al mismo plano.");
+            
+            const btn = event.currentTarget;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> ¡Copiado!`;
+            btn.classList.add('bg-green-500');
+            btn.classList.remove('bg-indigo-600');
+            
+            setTimeout(() => {
+                btn.innerHTML = originalHtml;
+                btn.classList.remove('bg-green-500');
+                btn.classList.add('bg-indigo-600');
+            }, 2000);
         }
     </script>
 </body>
