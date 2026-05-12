@@ -63,7 +63,7 @@
         </div>
         
         <div class="flex items-center gap-3">
-            <label class="cursor-pointer bg-white hover:bg-slate-50 border border-slate-200 px-5 py-3 rounded-2xl transition-all shadow-sm flex items-center gap-2 group">
+            <label id="btn-upload-plano" class="cursor-pointer bg-white hover:bg-slate-50 border border-slate-200 px-5 py-3 rounded-2xl transition-all shadow-sm flex items-center gap-2 group">
                 <svg class="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                 <span class="text-xs font-black text-slate-700 uppercase">Subir Plano</span>
                 <input type="file" id="upload-input" class="hidden" accept="image/*" onchange="processFile(event)">
@@ -131,7 +131,13 @@
     <div id="modal-view" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[2000] hidden flex items-center justify-center p-6">
         <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl flex flex-col max-h-[90vh]">
             <div class="flex justify-between items-start mb-6">
-                <h3 id="view-title" class="text-2xl font-black text-slate-800"></h3>
+                <div class="flex items-center gap-3">
+                    <h3 id="view-title" class="text-2xl font-black text-slate-800"></h3>
+                    <button id="btn-edit-zone" onclick="editZone()" class="hidden bg-yellow-100 text-yellow-700 hover:bg-yellow-200 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition items-center gap-1 shadow-sm">
+                        <svg class="w-3 h-3 inline-block mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                        Editar
+                    </button>
+                </div>
                 <button onclick="closeView()" class="bg-slate-100 text-slate-600 hover:bg-red-100 hover:text-red-600 w-8 h-8 rounded-full flex items-center justify-center transition font-bold">&times;</button>
             </div>
             
@@ -172,7 +178,20 @@
         let db = null;
         let currentMarkerId = null;
 
+        // NUEVAS VARIABLES PARA CONTROL DE EDICIÓN Y PERMISOS
+        let editingMarkerId = null; 
+        const isAdmin = new URLSearchParams(window.location.search).get('admin') === 'true';
+
         window.onload = function() {
+            // Ocultar herramientas de administrador si el usuario es un invitado
+            if(!isAdmin) {
+                const btnUpload = document.getElementById('btn-upload-plano');
+                if(btnUpload) btnUpload.style.display = 'none';
+                
+                const hintBox = document.getElementById('hint-box');
+                if(hintBox) hintBox.innerHTML = '<p class="text-sm font-black text-slate-800 uppercase tracking-wide">Modo Visualización</p><p class="text-[10px] font-bold text-slate-400">Solo el administrador puede agregar zonas</p>';
+            }
+
             // Inicializar Mapa con Zoom infinito y coordenadas Simples
             map = L.map('map', {
                 crs: L.CRS.Simple,
@@ -187,7 +206,11 @@
             // Evento click para agregar puntos
             map.on('click', function(e) {
                 if(!imageOverlay) return; // No permitir puntos si no hay plano
+                if(!isAdmin) return; // RESTRICCIÓN: Solo el administrador puede crear puntos
+                
                 currentClickCoords = e.latlng;
+                editingMarkerId = null; // Reiniciar estado (es un punto nuevo, no una edición)
+                
                 document.getElementById('editor-title').value = "";
                 document.getElementById('editor-desc').innerHTML = "";
                 document.getElementById('modal-editor').classList.remove('hidden');
@@ -292,26 +315,41 @@
 
         // === GESTIÓN DE MARCADORES Y DATOS ===
         function closeEditor() {
+            editingMarkerId = null;
             document.getElementById('modal-editor').classList.add('hidden');
         }
 
         function savePoint() {
-            if(!currentClickCoords) return;
-
             const title = document.getElementById('editor-title').value.trim() || "Nueva Zona";
             const desc = document.getElementById('editor-desc').innerHTML;
             const color = document.getElementById('editor-color').value;
             const icon = document.getElementById('editor-icon').value;
 
-            const markerData = { title, desc, color, icon, lat: currentClickCoords.lat, lng: currentClickCoords.lng };
-
-            if (db) {
-                db.ref('maps/' + mapId + '/markers').push(markerData);
+            if (editingMarkerId) {
+                // ACTUALIZAR PUNTO EXISTENTE
+                if (db) {
+                    db.ref('maps/' + mapId + '/markers/' + editingMarkerId).update({ title, desc, color, icon });
+                } else {
+                    const idx = markers.findIndex(x => x.id === editingMarkerId);
+                    if(idx > -1) {
+                        markers[idx] = { ...markers[idx], title, desc, color, icon };
+                        localStorage.setItem('mapvibe_local_markers', JSON.stringify(markers));
+                        renderMarkers();
+                    }
+                }
             } else {
-                markerData.id = "local_" + Date.now();
-                markers.push(markerData);
-                localStorage.setItem('mapvibe_local_markers', JSON.stringify(markers));
-                renderMarkers();
+                // CREAR NUEVO PUNTO
+                if(!currentClickCoords) return;
+                const markerData = { title, desc, color, icon, lat: currentClickCoords.lat, lng: currentClickCoords.lng };
+
+                if (db) {
+                    db.ref('maps/' + mapId + '/markers').push(markerData);
+                } else {
+                    markerData.id = "local_" + Date.now();
+                    markers.push(markerData);
+                    localStorage.setItem('mapvibe_local_markers', JSON.stringify(markers));
+                    renderMarkers();
+                }
             }
             
             closeEditor();
@@ -396,8 +434,28 @@
             document.getElementById('view-title').innerText = m.icon + " " + m.title;
             document.getElementById('view-desc').innerHTML = m.desc || "<i class='text-slate-400'>Sin descripción adicional</i>";
             
+            // Mostrar el botón de editar ÚNICAMENTE si eres tú (el Administrador)
+            const btnEdit = document.getElementById('btn-edit-zone');
+            if(btnEdit) btnEdit.style.display = isAdmin ? 'flex' : 'none';
+            
             renderComments(m.comments || {});
             document.getElementById('modal-view').classList.remove('hidden');
+        }
+
+        // NUEVA FUNCIÓN: Pasar los datos a la ventana de edición
+        function editZone() {
+            if(!currentMarkerId || !isAdmin) return;
+            const m = markers.find(x => x.id === currentMarkerId);
+            if(!m) return;
+            
+            editingMarkerId = m.id; // Marcamos que estamos editando este ID
+            document.getElementById('editor-title').value = m.title;
+            document.getElementById('editor-desc').innerHTML = m.desc || "";
+            document.getElementById('editor-color').value = m.color;
+            document.getElementById('editor-icon').value = m.icon;
+            
+            closeView();
+            document.getElementById('modal-editor').classList.remove('hidden');
         }
 
         function closeView() {
@@ -453,6 +511,7 @@
 
         // === COMPARTIR LINK ===
         function shareMap(event) {
+            // Genera la URL LIMPIA para el cliente (SIN el &admin=true)
             const url = window.location.origin + window.location.pathname + "?mapId=" + mapId;
             const temp = document.createElement('input');
             document.body.appendChild(temp);
