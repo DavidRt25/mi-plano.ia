@@ -107,7 +107,7 @@
         let mapId = new URLSearchParams(window.location.search).get('id') || 'mapa_principal';
 
         window.onload = function() {
-            if (firebaseConfig.apiKey !== "TU_API_KEY") {
+            if (firebaseConfig.apiKey !== "AIzaSyDnPiBbzVrVBP8j6DiBBwrYg-PVZrftEck") {
                 firebase.initializeApp(firebaseConfig);
                 db = firebase.database();
                 document.getElementById('cloud-status').innerHTML = '<span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Conectado a la Nube';
